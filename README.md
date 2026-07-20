@@ -1,4 +1,4 @@
-````markdown
+
 # Student Management API
 
 A simple CRUD API built with FastAPI for managing student records (name, age, course). Data is stored in memory, making this ideal for learning, prototyping, or testing.
@@ -153,4 +153,4 @@ For POST and PUT, send the body as JSON with `Content-Type: application/json`.
 You can test all of these directly in the browser via the interactive docs at `/docs`, or with a tool like Postman/Insomnia.
 
 ```
-```
+
