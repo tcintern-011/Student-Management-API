@@ -1,22 +1,9 @@
 from fastapi import FastAPI, HTTPException, status
-from pydantic import BaseModel, Field
-from typing import List
+from models import StudentCreate, Student, Book
+
 
 app = FastAPI(
-    title="Student Management API"
-)
-class Student(BaseModel):
-    id: int
-    name: str = Field(..., min_length=2, max_length=50)
-    age: int = Field(..., ge=1, le=100)
-    course: str = Field(..., min_length=2)
-
-
-class StudentCreate(BaseModel):
-    name: str = Field(..., min_length=2, max_length=50)
-    age: int = Field(..., ge=1, le=100)
-    course: str = Field(..., min_length=2)
-
+    title="Student Management API")
 students = [
     {
         "id": 1,
@@ -32,7 +19,25 @@ students = [
     }
 ]
 
-@app.get("/students", response_model=List[Student])
+all_books = [
+    {
+        "id" : 1,
+        "name" : "english Literature", 
+        "author" : "yaseen Ahmed", 
+        "isbn" : "1234567891012",
+        "genre" : "Literature"
+    }, 
+    {
+        "id" : 2,
+        "name" : "Linear Algebra Problems", 
+        "author" : "Ibrahim Raza", 
+        "isbn" : "1234567891014", 
+        "genre" : "Maths"
+        
+    },
+]
+
+@app.get("/students", response_model=list[Student])
 def get_students():
     return students
 
@@ -102,4 +107,56 @@ def delete_student(student_id: int):
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
         detail="Student not found"
+    )
+    
+    
+@app.get("/books", response_model= list[Book])
+def get_all_books():
+    return all_books
+
+app.get("/books/{book_id}" , response_model = Book)
+def get_book(book_id: int):
+    for book in all_books:
+        
+        if book["id"] == book_id:
+            return book
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail= "Book Not Found"
+    )
+    
+@app.delete(
+    "/books/{book_id}",
+    status_code=status.HTTP_204_NO_CONTENT
+)
+def delete_book(book_id: int):
+
+    for index, book in enumerate(all_books):
+
+        if book["id"] == book_id:
+            all_books.pop(index)
+            return
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Book Not Found"
+    )
+
+@app.put("/books/{book_id}", response_model=Book)
+def update_book(book_id: int, updated_book: Book):
+
+    for b in all_books:
+
+        if b["id"] == book_id:
+
+            b["name"] = updated_book.name
+            b["author"] = updated_book.author
+            b["genre"] = updated_book.genre
+            b["isbn"] = updated_book.isbn
+            
+            return b
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Boook Not Found"
     )
