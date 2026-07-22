@@ -1,9 +1,13 @@
-from fastapi import FastAPI, HTTPException, status
-from models import StudentCreate, Student, Book
+from fastapi import APIRouter, FastAPI, HTTPException, status, Depends
+from schema import StudentCreate, Student, Book, BookCreate
+from models import BookModel
+from database import Base, engine, get_db
+from sqlalchemy.orm import Session
 
 
-app = FastAPI(
-    title="Student Management API")
+Base.metadata.create_all(bind=engine)
+router = APIRouter()
+app = FastAPI(title="Student Management API")
 students = [
     {
         "id": 1,
@@ -19,23 +23,24 @@ students = [
     }
 ]
 
-all_books = [
-    {
-        "id" : 1,
-        "name" : "english Literature", 
-        "author" : "yaseen Ahmed", 
-        "isbn" : "1234567891012",
-        "genre" : "Literature"
-    }, 
-    {
-        "id" : 2,
-        "name" : "Linear Algebra Problems", 
-        "author" : "Ibrahim Raza", 
-        "isbn" : "1234567891014", 
-        "genre" : "Maths"
+# all_books = [
+#     {
+#         "id" : 1,
+#         "name" : "english Literature", 
+#         "author" : "yaseen Ahmed", 
+#         "isbn" : "1234567891012",
+#         "genre" : "Literature"
+#     }, 
+#     {
+#         "id" : 2,
+#         "name" : "Linear Algebra Problems", 
+#         "author" : "Ibrahim Raza", 
+#         "isbn" : "1234567891014", 
+#         "genre" : "Maths"
         
-    },
-]
+#     },
+# ]
+
 
 @app.get("/students", response_model=list[Student])
 def get_students():
@@ -110,53 +115,79 @@ def delete_student(student_id: int):
     )
     
     
-@app.get("/books", response_model= list[Book])
-def get_all_books():
-    return all_books
-
-app.get("/books/{book_id}" , response_model = Book)
-def get_book(book_id: int):
-    for book in all_books:
-        
-        if book["id"] == book_id:
-            return book
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail= "Book Not Found"
+    
+@app.post("/book", response_model = Book, status_code = 201)
+def add_book(book: BookCreate,db: Session = Depends(get_db) ):
+    existingbook = (db.query(BookModel).filter(BookModel.isbn == book.isbn)
+    .first())
+    
+    if existingbook: 
+        raise HTTPException(
+            statude_code = 400, 
+            detail = "Book with this Isbn already exists"
+        )
+    new_book = BookModel(
+        name = book.name, 
+        author = book.author, 
+        isbn = book.isbn, 
+        genre = book.genre
     )
     
+    db.add(new_book)
+    db.commit()
+    db.refresh(new_book)
+    return new_book
+    
+    
+@app.get("/books", response_model= list[Book])
+def get_all_books(db: Session = Depends(get_db)):
+    all_books = db.query(BookModel).all()
+    return all_books
+
+@app.get("/books/{book_id}" , response_model = Book)
+def get_book(book_id: int,db: Session = Depends(get_db)):
+    book = db.query(BookModel).filter(BookModel.id == book_id).first()
+    if not book: 
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail= "Book Not Found"
+        )
+    return book
+
+
 @app.delete(
     "/books/{book_id}",
     status_code=status.HTTP_204_NO_CONTENT
 )
-def delete_book(book_id: int):
+def delete_book(book_id: int , db: Session = Depends(get_db)):
+    book = db.query(BookModel).filter(BookModel.id == book_id).first()
+    if not book:
+        raise HTTPException(
+            status_code = status.HTTP_404_NOT_FOUND, 
+            detail = "Book Not Found"
+        )
+    db.delete(book)
+    db.commit()
 
-    for index, book in enumerate(all_books):
-
-        if book["id"] == book_id:
-            all_books.pop(index)
-            return
-
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="Book Not Found"
-    )
 
 @app.put("/books/{book_id}", response_model=Book)
-def update_book(book_id: int, updated_book: Book):
+def update_book(book_id: int, updated_book: Book, db: Session = Depends(get_db)):
+    book = db.query(BookModel).filter(BookModel.id == book_id).first()
+    if not book:
+        raise HTTPException(
+            status_code = status.HTTP_404_NOT_FOUND, 
+            detail = "Book Not Found"
+        )
+    
+    
+    
+    book.name = updated_book.name
+    book.author = updated_book.author
+    book.isbn = updated_book.isbn
+    book.genre = updated_book.genre
 
-    for b in all_books:
+    db.commit()
+    db.refresh(book)
+    return book
 
-        if b["id"] == book_id:
-
-            b["name"] = updated_book.name
-            b["author"] = updated_book.author
-            b["genre"] = updated_book.genre
-            b["isbn"] = updated_book.isbn
-            
-            return b
-
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="Boook Not Found"
-    )
+    
