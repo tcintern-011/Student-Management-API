@@ -1,2 +1,4 @@
 fastapiproj/
 __pycache__/
+students.db
+.env

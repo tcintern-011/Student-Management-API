@@ -1,12 +1,17 @@
-from fastapi import APIRouter, FastAPI, HTTPException, status, Depends
-from schema import StudentCreate, Student, Book, BookCreate
-from models import BookModel
-from database import Base, engine, get_db
+from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from database import Base, engine, get_db
+from models import BookModel, UserModel
+from schema import Book, BookCreate, UserCreate, UserOut, Token, StudentCreate, Student
+from security import hash_password, verify_password, create_access_token, get_current_user
+
+
+
+
 
 
 Base.metadata.create_all(bind=engine)
-router = APIRouter()
 app = FastAPI(title="Student Management API")
 students = [
     {
@@ -115,6 +120,34 @@ def delete_student(student_id: int):
     )
     
     
+@app.post("/signup", response_model=UserOut, status_code=201)
+def signup(user: UserCreate, db: Session = Depends(get_db)):
+    existing_user = db.query(UserModel).filter(UserModel.username == user.username).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Username already taken")
+
+    new_user = UserModel(
+        username=user.username,
+        hashed_password=hash_password(user.password),
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+    
+@app.post("/login", response_model=Token)
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(UserModel).filter(UserModel.username == form_data.username).first()
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token = create_access_token(data={"sub": user.username})
+    return Token(access_token=access_token)
+
     
 @app.post("/book", response_model = Book, status_code = 201)
 def add_book(book: BookCreate,db: Session = Depends(get_db) ):
@@ -123,7 +156,7 @@ def add_book(book: BookCreate,db: Session = Depends(get_db) ):
     
     if existingbook: 
         raise HTTPException(
-            statude_code = 400, 
+            status_code = 400, 
             detail = "Book with this Isbn already exists"
         )
     new_book = BookModel(
@@ -155,11 +188,17 @@ def get_book(book_id: int,db: Session = Depends(get_db)):
     return book
 
 
+
+# THIS IS ONLY THE PROTECTED ROUTE FOR THE CURRENT TASK
 @app.delete(
     "/books/{book_id}",
     status_code=status.HTTP_204_NO_CONTENT
 )
-def delete_book(book_id: int , db: Session = Depends(get_db)):
+def delete_book(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),  
+):
     book = db.query(BookModel).filter(BookModel.id == book_id).first()
     if not book:
         raise HTTPException(
@@ -179,8 +218,7 @@ def update_book(book_id: int, updated_book: Book, db: Session = Depends(get_db))
             detail = "Book Not Found"
         )
     
-    
-    
+
     book.name = updated_book.name
     book.author = updated_book.author
     book.isbn = updated_book.isbn

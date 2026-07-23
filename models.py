@@ -9,3 +9,11 @@ class BookModel(Base):
     author = Column(String(100), nullable = False)
     isbn = Column(String(13),unique = True, nullable = False)
     genre = Column(String(20), nullable = False)
+    
+class UserModel(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(100), nullable=False)
+    
